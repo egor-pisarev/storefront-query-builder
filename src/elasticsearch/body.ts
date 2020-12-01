@@ -233,18 +233,43 @@ export default class RequestBody {
    * @return {this}
    */
   protected applyCatalogFilters (): this {
+    var _this = this
     if (this.hasCatalogFilters()) {
       this.queryChain.filterMinimumShouldMatch(1)
-
-      const catalogFilters = this.appliedFilters.filter(object => this.checkIfObjectHasScope({ object, scope: 'catalog' }))
-      catalogFilters.forEach(filter => {
-        this.queryChain.filter('bool', catalogFilterQuery => {
-          return this.catalogFilterBuilder(catalogFilterQuery, filter, undefined, 'orFilter')
-              .orFilter('bool', b => this.catalogFilterBuilder(b, filter, this.optionsPrefix).filter('match', 'type_id', 'configurable'))
+      var catalogFilters = this.appliedFilters.filter(object => {
+        return _this.checkIfObjectHasScope({
+          object: object,
+          scope: 'catalog'
         })
       })
-    }
 
+      if (catalogFilters.length > 0) {
+        _this.queryChain.query(
+          'nested',
+          { path: 'configurable_children' },
+          q => {
+            q.query('term', `configurable_children.is_in_stock`, 1)
+            catalogFilters.forEach(filter => {
+              q.query(
+                'terms',
+                `configurable_children.${filter.attribute}`,
+                filter.value.in
+              )
+            })
+            return q
+          }
+        )
+      } else {
+        _this.queryChain.query(
+          'nested',
+          { path: 'configurable_children' },
+          q => {
+            q.query('term', `configurable_children.is_in_stock`, 1)
+            return q
+          }
+        )
+      }
+    }
     return this
   }
 
