@@ -234,43 +234,67 @@ export default class RequestBody {
    */
   protected applyCatalogFilters (): this {
     var _this = this
-    if (this.hasCatalogFilters()) {
-      this.queryChain.filterMinimumShouldMatch(1)
-      var catalogFilters = this.appliedFilters.filter(object => {
-        return _this.checkIfObjectHasScope({
-          object: object,
-          scope: 'catalog'
-        })
+    if (!this.hasCatalogFilters()) {
+      return this;
+    }
+    this.queryChain.filterMinimumShouldMatch(1)
+    var catalogFilters = this.appliedFilters.filter(object => {
+      return _this.checkIfObjectHasScope({
+        object: object,
+        scope: 'catalog'
       })
+    })
 
-      if (catalogFilters.length > 0) {
-        _this.queryChain.query(
-          'nested',
-          { path: 'configurable_children' },
-          q => {
-            q.query('term', `configurable_children.is_in_stock`, 1)
-            catalogFilters.forEach(filter => {
+    const nestedFilters = {}
+    const rootFilters = []
+
+    if (catalogFilters.length > 0) {
+      return this
+    }
+
+    this.appliedFilters.forEach(filter => {
+      const [path, attribute] = filter.attribute.split('.')
+      if(attribute){
+        if(!nestedFilters[path]) {
+          nestedFilters[path].push(filter)
+        }
+      } else {
+        rootFilters.push(filter)
+      }
+    })
+
+    rootFilters.forEach(filter => {
+      this.queryChain.filter('bool', catalogFilterQuery => {
+        return this.catalogFilterBuilder(catalogFilterQuery, filter, undefined, 'orFilter')
+            .orFilter('bool', b => this.catalogFilterBuilder(b, filter, this.optionsPrefix).filter('match', 'type_id', 'configurable'))
+      })
+    })
+
+    Object.keys(nestedFilters).forEach(path => {
+      _this.queryChain.query(
+        'nested',
+        { path },
+        q => {
+          catalogFilters.forEach(filter => {
+            if(filter.value.in){
               q.query(
                 'terms',
-                `configurable_children.${filter.attribute}`,
+                filter.attribute,
                 filter.value.in
               )
-            })
-            return q
-          }
-        )
-      } else {
-        _this.queryChain.query(
-          'nested',
-          { path: 'configurable_children' },
-          q => {
-            q.query('term', `configurable_children.is_in_stock`, 1)
-            return q
-          }
-        )
-      }
-    }
-    return this
+            } else if(filter.value.eq){
+              q.query(
+                'term',
+                filter.attribute,
+                filter.value.eq
+              )
+            } 
+          })
+          return q
+        }
+      )
+    })
+      
   }
 
   protected hasCatalogFilters(): boolean {
