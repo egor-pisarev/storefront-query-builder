@@ -233,31 +233,32 @@ export default class RequestBody {
    * @return {this}
    */
   protected applyCatalogFilters (): this {
-    var _this = this
     if (!this.hasCatalogFilters()) {
       return this;
     }
     this.queryChain.filterMinimumShouldMatch(1)
-    var catalogFilters = this.appliedFilters.filter(object => {
-      return _this.checkIfObjectHasScope({
+    const catalogFilters = this.appliedFilters.filter(object => {
+      return this.checkIfObjectHasScope({
         object: object,
         scope: 'catalog'
       })
     })
 
-    const nestedFilters = {}
-    const rootFilters = []
-
-    if (catalogFilters.length > 0) {
+    if (catalogFilters.length <= 0) {
       return this
     }
 
-    this.appliedFilters.forEach(filter => {
+    const nestedFilters = {}
+    const rootFilters = []
+   
+    catalogFilters.forEach(filter => {
       const [path, attribute] = filter.attribute.split('.')
       if(attribute){
         if(!nestedFilters[path]) {
-          nestedFilters[path].push(filter)
+          nestedFilters[path] = []
         }
+        nestedFilters[path].push(filter)
+
       } else {
         rootFilters.push(filter)
       }
@@ -271,7 +272,7 @@ export default class RequestBody {
     })
 
     Object.keys(nestedFilters).forEach(path => {
-      _this.queryChain.query(
+      this.queryChain.query(
         'nested',
         { path },
         q => {
@@ -294,7 +295,7 @@ export default class RequestBody {
         }
       )
     })
-      
+    return this
   }
 
   protected hasCatalogFilters(): boolean {
