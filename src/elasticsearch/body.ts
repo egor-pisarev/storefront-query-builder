@@ -353,8 +353,8 @@ export default class RequestBody {
             let aggregationSize = { size: options.size || config.filterAggregationSize[field] || config.filterAggregationSize.default }
             this.queryChain
                 .aggregation('terms', this.getMapping(field), aggregationSize)
-                .aggregation('terms', field + this.optionsPrefix, aggregationSize)
           } else {
+            
             const appliedPriceFilter = this.appliedFilters.find(filter => filter.attribute === 'price')
             const additionalPriceAggregations = [];
 
